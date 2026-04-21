@@ -21,7 +21,7 @@ on:
       kernel_version:
         description: "Select kernel version"
         required: false
-        default: "6.12.y"
+        default: "6.1.y"
         type: choice
         options:
           - 5.10.y
@@ -67,7 +67,7 @@ on:
       docker_image:
         description: "Select Armbian docker image"
         required: false
-        default: "trixie"
+        default: "bookworm"
         type: choice
         options:
           - trixie
