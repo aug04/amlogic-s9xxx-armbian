@@ -6,7 +6,7 @@ jobs:
   build:
     runs-on: ubuntu-24.04-arm
     container:
-      image: debian:bookworm # Đảm bảo khớp GLIBC 2.36
+      image: debian:bookworm
     steps:
       - name: Install Build Tools
         run: |
@@ -15,29 +15,27 @@ jobs:
 
       - name: Download and Extract Deb Files
         run: |
-          # Tải gói deb từ link bạn cung cấp
           wget https://github.com/aug04/amlogic-s9xxx-armbian/releases/download/kernel_stable/deb-6.1.169.tar.gz
-          tar -xf deb-6.1.169.tar.gz
+          mkdir -p kernel_files
+          tar -xf deb-6.1.169.tar.gz -C kernel_files
           
       - name: Install Kernel Headers
         run: |
-          # Cài đặt file headers và libc-dev để có môi trường build driver
-          # Sử dụng wildcard để tự động tìm file headers trong thư mục đã giải nén
-          dpkg -i linux-headers-6.1.169-1-ophub_arm64.deb
-          dpkg -i linux-libc-dev_6.1.169-1-ophub_arm64.deb
+          # Tìm và cài đặt file headers và libc-dev bất kể chúng nằm ở thư mục nào
+          find kernel_files -name "linux-headers-*.deb" -exec dpkg -i {} +
+          find kernel_files -name "linux-libc-dev*.deb" -exec dpkg -i {} +
 
       - name: Clone and Build RTL8189ES Driver
         run: |
           git clone https://github.com/jwrdegoede/rtl8189ES_linux.git
           cd rtl8189ES_linux
-          # Lấy chính xác tên thư mục build từ headers vừa cài (để khớp Vermagic)
-          KVER=$(ls /lib/modules | head -n 1)
+          # Lấy version chính xác từ thư mục modules đã cài
+          KVER=$(ls /lib/modules | grep "ophub" | head -n 1)
           echo "Building for Kernel: $KVER"
-          # Thực hiện build driver trỏ vào thư mục build của headers
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- KSRC=/lib/modules/$KVER/build -j$(nproc)
 
       - name: Upload Finished Driver (.ko)
         uses: actions/upload-artifact@v4
         with:
-          name: 8189es-driver-for-6.1.169
+          name: 8189es-driver-fixed
           path: rtl8189ES_linux/8189es.ko
