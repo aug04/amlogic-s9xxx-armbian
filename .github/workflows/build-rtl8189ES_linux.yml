@@ -13,42 +13,42 @@ jobs:
           apt-get update
           apt-get install -y git wget make gcc-aarch64-linux-gnu kmod dpkg-dev libelf-dev rsync bc
 
-      - name: Download and Extract Deb Files
+      - name: Download and Prepare Headers
         run: |
+          # 1. Tải gói từ link của bạn
           wget https://github.com/aug04/amlogic-s9xxx-armbian/releases/download/kernel_stable/deb-6.1.169.tar.gz
-          mkdir -p kernel_files
-          tar -xf deb-6.1.169.tar.gz -C kernel_files
+          tar -xf deb-6.1.169.tar.gz
           
-      - name: Install Kernel Headers
-        run: |
-          # Cài đặt các gói deb đã build
-          find kernel_files -name "linux-headers-*.deb" -exec dpkg -i {} +
-          find kernel_files -name "linux-libc-dev*.deb" -exec dpkg -i {} +
+          # 2. Xả nén thủ công file .deb thay vì "install"
+          # Lệnh này sẽ trích xuất toàn bộ nội dung file headers vào thư mục 'headers_extracted'
+          mkdir -p headers_extracted
+          find . -name "linux-headers-*.deb" -exec dpkg -x {} ./headers_extracted \;
+          
+          # 3. Tìm chính xác đường dẫn chứa Makefile của headers
+          # Chúng ta tìm thư mục có chứa 'Makefile' và 'scripts' bên trong headers_extracted
+          KSRC_PATH=$(find $(pwd)/headers_extracted -name "Makefile" | xargs grep -l "Kernel" | xargs dirname | head -n 1)
+          
+          echo "KSRC_FINAL=$KSRC_PATH" >> $GITHUB_ENV
+          echo "Tìm thấy KSRC tại: $KSRC_PATH"
 
       - name: Clone and Build RTL8189ES Driver
         run: |
           git clone https://github.com/jwrdegoede/rtl8189ES_linux.git
           cd rtl8189ES_linux
           
-          # Đường dẫn KSRC trỏ trực tiếp vào thư mục headers đã cài
-          # Dựa trên file deb của bạn, tên thư mục thường là linux-headers-6.1.169-1-ophub
-          KSRC_PATH="/usr/src/linux-headers-6.1.169-1-ophub"
+          # Sử dụng biến môi trường đã lưu ở bước trước
+          echo "Building with KSRC: ${{ env.KSRC_FINAL }}"
           
-          echo "Using KSRC: $KSRC_PATH"
-          
-          # Kiểm tra xem thư mục có tồn tại không trước khi build
-          if [ ! -d "$KSRC_PATH" ]; then
-            echo "Error: Directory $KSRC_PATH not found!"
-            # Thử tìm thư mục headers gần đúng nhất nếu sai tên
-            KSRC_PATH=$(find /usr/src -name "linux-headers-*" -type d | head -n 1)
-            echo "Switching to alternative KSRC: $KSRC_PATH"
+          if [ -z "${{ env.KSRC_FINAL }}" ]; then
+            echo "LỖI: Không tìm thấy thư mục build trong headers!"
+            exit 1
           fi
 
           # Thực hiện build driver
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- KSRC=$KSRC_PATH -j$(nproc)
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- KSRC=${{ env.KSRC_FINAL }} -j$(nproc)
 
       - name: Upload Finished Driver (.ko)
         uses: actions/upload-artifact@v4
         with:
-          name: 8189es-driver-v6
+          name: 8189es-driver-v7
           path: rtl8189ES_linux/8189es.ko
