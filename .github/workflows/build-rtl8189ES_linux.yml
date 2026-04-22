@@ -15,40 +15,39 @@ jobs:
 
       - name: Download and Prepare Headers
         run: |
-          # 1. Tải gói từ link của bạn
+          # 1. Tải và xả nén gói .tar.gz
           wget https://github.com/aug04/amlogic-s9xxx-armbian/releases/download/kernel_stable/deb-6.1.169.tar.gz
           tar -xf deb-6.1.169.tar.gz
           
-          # 2. Xả nén thủ công file .deb thay vì "install"
-          # Lệnh này sẽ trích xuất toàn bộ nội dung file headers vào thư mục 'headers_extracted'
-          mkdir -p headers_extracted
-          find . -name "linux-headers-*.deb" -exec dpkg -x {} ./headers_extracted \;
+          # 2. Xả nén file .deb vào thư mục h_extracted
+          mkdir -p h_extracted
+          find . -name "linux-headers-*.deb" -exec dpkg -x {} ./h_extracted \;
           
-          # 3. Tìm chính xác đường dẫn chứa Makefile của headers
-          # Chúng ta tìm thư mục có chứa 'Makefile' và 'scripts' bên trong headers_extracted
-          KSRC_PATH=$(find $(pwd)/headers_extracted -name "Makefile" | xargs grep -l "Kernel" | xargs dirname | head -n 1)
+          # 3. Tìm thư mục chứa file 'Makefile' của headers
+          # Chúng ta tìm file Makefile nào nằm trong thư mục 'linux-headers'
+          KSRC_PATH=$(find $(pwd)/h_extracted -path "*/linux-headers-*/Makefile" | xargs dirname | head -n 1)
+          
+          if [ -z "$KSRC_PATH" ]; then
+            echo "LỖI: Không tìm thấy thư mục chứa Makefile trong headers!"
+            exit 1
+          fi
           
           echo "KSRC_FINAL=$KSRC_PATH" >> $GITHUB_ENV
-          echo "Tìm thấy KSRC tại: $KSRC_PATH"
+          echo "Đã xác định KSRC thực tế tại: $KSRC_PATH"
 
-      - name: Clone and Build RTL8189ES Driver
+      - name: Clone and Build Driver
         run: |
           git clone https://github.com/jwrdegoede/rtl8189ES_linux.git
           cd rtl8189ES_linux
           
-          # Sử dụng biến môi trường đã lưu ở bước trước
-          echo "Building with KSRC: ${{ env.KSRC_FINAL }}"
+          echo "Sử dụng KSRC: ${{ env.KSRC_FINAL }}"
           
-          if [ -z "${{ env.KSRC_FINAL }}" ]; then
-            echo "LỖI: Không tìm thấy thư mục build trong headers!"
-            exit 1
-          fi
-
           # Thực hiện build driver
+          # Cấu trúc: make ARCH=arm64 CROSS_COMPILE=... KSRC=đường_dẫn_headers
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- KSRC=${{ env.KSRC_FINAL }} -j$(nproc)
 
       - name: Upload Finished Driver (.ko)
         uses: actions/upload-artifact@v4
         with:
-          name: 8189es-driver-v7
+          name: 8189es-driver-v9
           path: rtl8189ES_linux/8189es.ko
