@@ -1,0 +1,27 @@
+name: Simple Kernel Build
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: debian:bookworm # Đảm bảo khớp GLIBC 2.36 của bạn
+    steps:
+      - name: Install Tools
+        run: apt-get update && apt-get install -y git wget xz-utils bc flex bison libssl-dev make gcc-aarch64-linux-gnu kmod dpkg-dev
+      
+      - name: Download Kernel
+        run: |
+          wget https://mirrors.edge.kernel.org/pub/linux/kernel/v6.x/linux-6.1.169.tar.xz
+          tar -xf linux-6.1.169.tar.xz
+          
+      - name: Build Scripts & Headers
+        run: |
+          cd linux-6.1.169
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- bindeb-pkg -j$(nproc)
+          
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-headers-only
+          path: ./*.deb
