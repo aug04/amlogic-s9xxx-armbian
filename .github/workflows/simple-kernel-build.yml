@@ -1,4 +1,4 @@
-name: Simple Kernel Build V2
+name: Simple Kernel Build
 on: workflow_dispatch
 jobs:
   build:
@@ -9,7 +9,7 @@ jobs:
       - name: Install Tools
         run: |
           apt-get update
-          apt-get install -y git wget xz-utils bc flex bison libssl-dev make gcc-aarch64-linux-gnu kmod dpkg-dev libelf-dev rsynccurve
+          apt-get install -y git wget xz-utils bc flex bison libssl-dev make gcc-aarch64-linux-gnu kmod dpkg-dev libelf-dev rsync
 
       - name: Download Kernel
         run: |
@@ -20,13 +20,13 @@ jobs:
         run: |
           cd linux-6.1.169
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig
-          # Tắt debug info để build nhanh hơn và giảm dung lượng file .deb
+          # Tắt debug để build nhanh và file nhẹ
           scripts/config --disable DEBUG_INFO
+          # Chỉ build gói deb cho headers và libc để tiết kiệm thời gian
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- bindeb-pkg -j$(nproc)
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: kernel-headers-only
-          # File .deb sinh ra nằm ở thư mục cha của thư mục kernel
           path: ./*.deb
